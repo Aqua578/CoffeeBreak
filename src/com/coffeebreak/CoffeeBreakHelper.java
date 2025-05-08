@@ -2,42 +2,33 @@ package com.coffeebreak;
 
 import javax.swing.*;
 import java.text.SimpleDateFormat;
-import java.awt.Color;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.awt.FlowLayout;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Component;
-import java.awt.GridLayout;
-import java.awt.Font;
-import java.awt.FontFormatException;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
+import java.sql.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/**
- * Helper class for the Coffee Break application
- * Contains business logic and helper functions
- */
 public class CoffeeBreakHelper {
     private double totalAmount = 0.0;
-    private static final double DISCOUNT_RATE = 0.20; // 20% discount for Senior/PWD
+    private static final double DISCOUNT_RATE = 0.20;
 
-    // Data structure to store menu items and their subcategories
+    // Database connection info
+    private static final String DB_URL = "jdbc:postgresql://localhost:5433/Brew";
+    private static final String DB_USER = "postgres";
+    private static final String DB_PASS = "0000";
+
     private Map<String, String[]> menuSubcategories = new HashMap<>();
     private Map<String, double[]> categoryPrices = new HashMap<>();
 
     public CoffeeBreakHelper() {
         initializeMenuData();
+        createSalesTableIfNotExists();
     }
 
     private void initializeMenuData() {
-        // Initialize menu subcategories
         menuSubcategories.put("Amerikano", new String[]{"Original Coffee", "Caramel", "Chocolate", "Blanca"});
         menuSubcategories.put("Boba Bliss", new String[]{"Probiotea Pearl", "Chocolate", "Cookies and Cream", "Hokkaido", "Matcha", "Salted Caramel", "Okinawa", "WinterMLN"});
         menuSubcategories.put("Fruit Tea", new String[]{"Apple Berry", "Green Apple", "Lychee", "Strawberry", "Tropical Berries"});
@@ -51,16 +42,13 @@ public class CoffeeBreakHelper {
         menuSubcategories.put("Croffles (Classic)", new String[]{"Plain", "Cinnamon", "Sugar Coated"});
         menuSubcategories.put("Combo", new String[]{"Coffee + Croffle", "Coffee + Siomai", "Coffee + Fries", "Special + Croffle", "Special + Siomai"});
 
-        // Initialize prices for categories
-        // Format: {Petite/Mini price, Venti/Large price}
         categoryPrices.put("Amerikano", new double[]{29, 39});
         categoryPrices.put("Boba Bliss", new double[]{39, 49});
         categoryPrices.put("Fruit Tea", new double[]{39, 49});
-        categoryPrices.put("Hot Drinks", new double[]{39, 39}); // Hot drinks only have one size (12oz)
+        categoryPrices.put("Hot Drinks", new double[]{39, 39});
         categoryPrices.put("Iced Latte", new double[]{39, 49});
         categoryPrices.put("Non Caffeine", new double[]{39, 49});
-        categoryPrices.put("Special Series", new double[]{55, 55}); // Special series only has Venti size
-        // Food items with Mini/Large prices
+        categoryPrices.put("Special Series", new double[]{55, 55});
         categoryPrices.put("Siomai King", new double[]{50, 75});
         categoryPrices.put("French Fries", new double[]{35, 50});
         categoryPrices.put("Croffles (Premium)", new double[]{70 ,95});
@@ -68,9 +56,39 @@ public class CoffeeBreakHelper {
         categoryPrices.put("Combo", new double[]{99, 149});
     }
 
+    private void createSalesTableIfNotExists() {
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+             Statement stmt = conn.createStatement()) {
+            String sql = "CREATE TABLE IF NOT EXISTS sales (" +
+                    "id SERIAL PRIMARY KEY, " +
+                    "ref VARCHAR(32), " +
+                    "amount DOUBLE PRECISION, " +
+                    "date TIMESTAMP, " +
+                    "payment_method VARCHAR(20)" +
+                    ")";
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Database error: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void insertSale(String ref, double amount, LocalDateTime date, String paymentMethod) {
+        String sql = "INSERT INTO sales (ref, amount, date, payment_method) VALUES (?, ?, ?, ?)";
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, ref);
+            ps.setDouble(2, amount);
+            ps.setTimestamp(3, Timestamp.valueOf(date));
+            ps.setString(4, paymentMethod);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Failed to record sale: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     public String getCurrentDate() {
         SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM dd, yyyy");
-        return dateFormat.format(new Date());
+        return dateFormat.format(new java.util.Date());
     }
 
     public String[] createButtonLabels() {
@@ -85,7 +103,6 @@ public class CoffeeBreakHelper {
             "Amerikano", "Boba Bliss", "Fruit Tea", "Hot Drinks", 
             "Iced Latte", "Non Caffeine", "Special Series"
         };
-
         for (String drink : drinkItems) {
             if (drink.equals(itemName)) {
                 return true;
@@ -94,19 +111,17 @@ public class CoffeeBreakHelper {
         return false;
     }
 
-    // --- Load Poppins Font ---
     private Font getPoppinsFont(float size, int style) {
         try {
             java.io.InputStream is = getClass().getResourceAsStream("/com/coffeebreak/resources/fonts/Poppins-Regular.ttf");
-            if (is == null) return new Font("Arial", style, (int)size); // fallback
+            if (is == null) return new Font("Arial", style, (int)size);
             Font font = Font.createFont(Font.TRUETYPE_FONT, is).deriveFont(style, size);
             return font;
         } catch (FontFormatException | IOException e) {
-            return new Font("Arial", style, (int)size); // fallback
+            return new Font("Arial", style, (int)size);
         }
     }
 
-    // --- Button creation methods copied from GUI.java ---
     private JButton createBlackButton(String text) {
         JButton button = new JButton("<html><center>" + text + "</center></html>") {
             @Override
@@ -172,23 +187,28 @@ public class CoffeeBreakHelper {
         return button;
     }
 
-    // --- Custom Option Dialog ---
+    // Center any window/dialog on screen
+    private void centerWindow(Window window) {
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        Dimension windowSize = window.getSize();
+        int x = (screenSize.width - windowSize.width) / 2;
+        int y = (screenSize.height - windowSize.height) / 2;
+        window.setLocation(x, y);
+    }
+
     private String showCustomOptionDialog(String title, String[] options) {
         JDialog dialog = new JDialog((JFrame) null, title, true);
 
-        // Outer panel for padding
         JPanel outerPanel = new JPanel(new BorderLayout());
         outerPanel.setBackground(Color.WHITE);
-        outerPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30)); // Padding around the grid
+        outerPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
 
-        // Grid panel for buttons
         JPanel panel = new JPanel();
         int columns = Math.min(options.length, 4);
-        panel.setLayout(new GridLayout(0, columns, 10, 10)); // More space between buttons
+        panel.setLayout(new GridLayout(0, columns, 10, 10));
         panel.setBackground(Color.WHITE);
 
         final String[] selected = {null};
-        Font poppinsFont = new Font("Poppins", Font.PLAIN, 12);
 
         for (String option : options) {
             JButton btn = createBlackButton(option);
@@ -200,12 +220,10 @@ public class CoffeeBreakHelper {
             panel.add(btn);
         }
 
-        // Title
         JLabel titleLabel = new JLabel(title, SwingConstants.CENTER);
         titleLabel.setFont(new Font("Poppins", Font.BOLD, 18));
         titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
 
-        // Close button
         JButton closeBtn = createColoredButton("X", new Color(255, 75, 75));
         closeBtn.setPreferredSize(new Dimension(50, 30));
         closeBtn.addActionListener(e -> dialog.dispose());
@@ -219,15 +237,14 @@ public class CoffeeBreakHelper {
 
         dialog.getContentPane().add(outerPanel);
         dialog.pack();
+        centerWindow(dialog);
         dialog.setResizable(false);
-        dialog.setLocationRelativeTo(null);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setVisible(true);
 
         return selected[0];
     }
 
-    // --- Custom Option Dialog for Payment/Discount (returns index) ---
     private int showCustomOptionDialogIndex(String title, String[] options, int defaultIndex) {
         JDialog dialog = new JDialog((JFrame) null, title, true);
 
@@ -271,8 +288,8 @@ public class CoffeeBreakHelper {
 
         dialog.getContentPane().add(outerPanel);
         dialog.pack();
+        centerWindow(dialog);
         dialog.setResizable(false);
-        dialog.setLocationRelativeTo(null);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setVisible(true);
 
@@ -356,7 +373,6 @@ public class CoffeeBreakHelper {
             price = prices[sizeChoice];
         }
 
-        String itemDescription = selectedSubcategory + " - " + selectedSize;
         JScrollPane scrollPane = (JScrollPane) orderPanel.getComponent(1);
         JPanel itemsPanel = (JPanel) scrollPane.getViewport().getView();
 
@@ -390,8 +406,6 @@ public class CoffeeBreakHelper {
         JLabel itemCodeLabel = new JLabel((buttonLabel.substring(0, 3) + sizeChoice).toUpperCase(), SwingConstants.LEFT);
         JLabel itemQtyLabel = new JLabel("1", SwingConstants.CENTER);
         JLabel itemPriceLabel = new JLabel("₱" + String.format("%.2f", price), SwingConstants.RIGHT);
-
-// Fonts for the order invoice display
 
         Font poppins10 = getPoppinsFont(12f, Font.BOLD);
         itemNameLabel.setFont(poppins10);
@@ -433,17 +447,26 @@ public class CoffeeBreakHelper {
             return false;
         }
 
+        String paymentMethod = paymentOptions[paymentChoice];
+        String refNumber = generateReferenceNumber();
+        LocalDateTime now = LocalDateTime.now();
+        boolean paymentSuccess = false;
+        double cashAmount = 0;
+
         switch (paymentChoice) {
             case 0: // Cash
                 String cashInput = JOptionPane.showInputDialog(
+                    null,
                     "Total Amount: ₱" + String.format("%.2f", finalAmount) + 
-                    "\nEnter cash amount:"
+                    "\nEnter cash amount:",
+                    "Cash Payment",
+                    JOptionPane.PLAIN_MESSAGE
                 );
 
                 if (cashInput == null) return false;
 
                 try {
-                    double cashAmount = Double.parseDouble(cashInput);
+                    cashAmount = Double.parseDouble(cashInput);
                     if (cashAmount < finalAmount) {
                         JOptionPane.showMessageDialog(null, 
                             "Insufficient cash amount!", 
@@ -451,19 +474,7 @@ public class CoffeeBreakHelper {
                             JOptionPane.ERROR_MESSAGE);
                         return false;
                     }
-
-                    String receipt = generateReceiptWithDiscount(orderDetailsPanel, amount, finalAmount, cashAmount);
-                    JTextArea receiptArea = new JTextArea(receipt);
-                    receiptArea.setBackground(new Color(240, 240, 240));
-                    receiptArea.setFont(getPoppinsFont(14f, Font.PLAIN));
-                    JScrollPane receiptPane = new JScrollPane(receiptArea);
-                    receiptPane.setBackground(new Color(240, 240, 240));
-
-                    JOptionPane.showMessageDialog(null, 
-                        receiptPane,
-                        "Receipt",
-                        JOptionPane.INFORMATION_MESSAGE);
-                    return true;
+                    paymentSuccess = true;
                 } catch (NumberFormatException e) {
                     JOptionPane.showMessageDialog(null, 
                         "Invalid amount entered!", 
@@ -471,74 +482,123 @@ public class CoffeeBreakHelper {
                         JOptionPane.ERROR_MESSAGE);
                     return false;
                 }
+                break;
 
             case 1: // Credit Card
-                String cardNumber = JOptionPane.showInputDialog("Enter credit card number:");
-                if (cardNumber == null || !cardNumber.matches("\\d{16}")) {
-                    JOptionPane.showMessageDialog(null, 
-                        "Invalid card number!", 
-                        "Payment Error", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return false;
+                String cardNumber;
+                while (true) {
+                    cardNumber = JOptionPane.showInputDialog(
+                        null, "Enter credit card number (16 digits):", "Credit Card Payment", JOptionPane.PLAIN_MESSAGE);
+                    if (cardNumber == null) return false;
+                    if (cardNumber.matches("^(4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12}|[0-9]{16})$")) break;
+                    JOptionPane.showMessageDialog(null, "Invalid card number!", "Payment Error", JOptionPane.ERROR_MESSAGE);
                 }
 
-                String cvv = JOptionPane.showInputDialog("Enter CVV:");
-                if (cvv == null || !cvv.matches("\\d{3}")) {
-                    JOptionPane.showMessageDialog(null, 
-                        "Invalid CVV!", 
-                        "Payment Error", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return false;
+                String cvv;
+                while (true) {
+                    cvv = JOptionPane.showInputDialog(
+                        null, "Enter CVV (3 or 4 digits):", "Credit Card Payment", JOptionPane.PLAIN_MESSAGE);
+                    if (cvv == null) return false;
+                    if (cvv.matches("^\\d{3,4}$")) break;
+                    JOptionPane.showMessageDialog(null, "Invalid CVV!", "Payment Error", JOptionPane.ERROR_MESSAGE);
                 }
-
-                String receipt = generateReceiptWithDiscount(orderDetailsPanel, amount, finalAmount, 0);
-                JTextArea receiptArea = new JTextArea(receipt);
-                receiptArea.setBackground(new Color(240, 240, 240));
-                receiptArea.setFont(getPoppinsFont(12f, Font.PLAIN));
-                JScrollPane receiptPane = new JScrollPane(receiptArea);
-                receiptPane.setBackground(new Color(240, 240, 240));
-
-                JOptionPane.showMessageDialog(null, 
-                    receiptPane,
-                    "Receipt",
-                    JOptionPane.INFORMATION_MESSAGE);
-                return true;
+                paymentSuccess = true;
+                break;
 
             case 2: // GCash
-                String phoneNumber = JOptionPane.showInputDialog("Enter GCash number:");
-                if (phoneNumber == null || !phoneNumber.matches("09\\d{9}")) {
-                    JOptionPane.showMessageDialog(null, 
-                        "Invalid phone number!", 
-                        "Payment Error", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return false;
+                String phoneNumber;
+                while (true) {
+                    phoneNumber = JOptionPane.showInputDialog(
+                        null, "Enter GCash number (09XXXXXXXXX):", "GCash Payment", JOptionPane.PLAIN_MESSAGE);
+                    if (phoneNumber == null) return false;
+                    if (phoneNumber.matches("^09\\d{9}$")) break;
+                    JOptionPane.showMessageDialog(null, "Invalid GCash number!", "Payment Error", JOptionPane.ERROR_MESSAGE);
                 }
 
-                String pin = JOptionPane.showInputDialog("Enter MPIN:");
-                if (pin == null || !pin.matches("\\d{4}")) {
-                    JOptionPane.showMessageDialog(null, 
-                        "Invalid MPIN!", 
-                        "Payment Error", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return false;
+                String pin;
+                while (true) {
+                    pin = JOptionPane.showInputDialog(
+                        null, "Enter MPIN (4 digits):", "GCash Payment", JOptionPane.PLAIN_MESSAGE);
+                    if (pin == null) return false;
+                    if (pin.matches("^\\d{4}$")) break;
+                    JOptionPane.showMessageDialog(null, "Invalid MPIN!", "Payment Error", JOptionPane.ERROR_MESSAGE);
                 }
-
-                receipt = generateReceiptWithDiscount(orderDetailsPanel, amount, finalAmount, 0);
-                receiptArea = new JTextArea(receipt);
-                receiptArea.setBackground(new Color(240, 240, 240));
-                receiptArea.setFont(getPoppinsFont(12f, Font.PLAIN));
-                receiptPane = new JScrollPane(receiptArea);
-                receiptPane.setBackground(new Color(240, 240, 240));
-
-                JOptionPane.showMessageDialog(null, 
-                    receiptPane,
-                    "Receipt",
-                    JOptionPane.INFORMATION_MESSAGE);
-                return true;
-
-            default:
-                return false;
+                paymentSuccess = true;
+                break;
         }
+
+        if (paymentSuccess) {
+            String receipt = generateReceiptWithDiscount(orderDetailsPanel, amount, finalAmount, cashAmount, refNumber);
+            // Insert into database before showing receipt
+            insertSale(refNumber, finalAmount, now, paymentMethod);
+            showStyledReceipt(receipt);
+            return true;
+        }
+        return false;
+    }
+
+    // --- Receipt Dialog with Black Main Color and White Text, Centered Content ---
+    public void showStyledReceipt(String receiptText) {
+        JDialog dialog = new JDialog((JFrame) null, "Receipt", true);
+        dialog.setUndecorated(true);
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(Color.BLACK);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+
+        // Header
+        JLabel header = new JLabel("COFFEE BREAK", SwingConstants.CENTER);
+        header.setFont(getPoppinsFont(26f, Font.BOLD));
+        header.setForeground(Color.WHITE);
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+        mainPanel.add(header, BorderLayout.NORTH);
+
+        // Receipt area
+        JPanel receiptPanel = new JPanel(new BorderLayout());
+        receiptPanel.setBackground(Color.BLACK);
+        receiptPanel.setBorder(BorderFactory.createLineBorder(Color.WHITE, 2));
+        receiptPanel.setPreferredSize(new Dimension(500, 350));
+
+        JTextArea receiptArea = new JTextArea(receiptText);
+        receiptArea.setEditable(false);
+        receiptArea.setFont(new Font("Monospaced", Font.PLAIN, 16));
+        receiptArea.setForeground(Color.WHITE);
+        receiptArea.setBackground(Color.BLACK);
+        receiptArea.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        receiptArea.setCaretPosition(0);
+
+        // Center text in JTextArea (works best with monospaced font)
+        receiptArea.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Wrap in a panel with FlowLayout to help center
+        JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        centerPanel.setBackground(Color.BLACK);
+        centerPanel.add(receiptArea);
+
+        receiptPanel.add(centerPanel, BorderLayout.CENTER);
+        mainPanel.add(receiptPanel, BorderLayout.CENTER);
+
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 20));
+        buttonPanel.setBackground(Color.BLACK);
+
+        JButton backButton = createColoredButton("Back", new Color(60, 60, 60));
+        JButton confirmButton = createColoredButton("Confirm", Color.WHITE);
+        confirmButton.setForeground(Color.BLACK);
+        backButton.setFont(getPoppinsFont(16f, Font.BOLD));
+        confirmButton.setFont(getPoppinsFont(16f, Font.BOLD));
+        buttonPanel.add(backButton);
+        buttonPanel.add(confirmButton);
+
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        backButton.addActionListener(e -> dialog.dispose());
+        confirmButton.addActionListener(e -> dialog.dispose());
+
+        dialog.setContentPane(mainPanel);
+        dialog.pack();
+        centerWindow(dialog);
+        dialog.setVisible(true);
     }
 
     public double applyDiscount(double amount, JPanel orderPanel) {
@@ -549,48 +609,62 @@ public class CoffeeBreakHelper {
             return amount;
         }
 
-        String idNumber = JOptionPane.showInputDialog(
-            "Enter " + discountOptions[discountChoice] + " ID Number:"
-        );
+        while (true) {
+            String idNumber = JOptionPane.showInputDialog(
+                null,
+                "Enter " + discountOptions[discountChoice] + " ID Number:",
+                "Discount Verification",
+                JOptionPane.PLAIN_MESSAGE
+            );
 
-        if (idNumber == null || idNumber.trim().isEmpty()) {
-            return amount;
+            if (idNumber == null) {
+                // User cancelled, treat as no discount
+                return amount;
+            }
+
+            if (idNumber.trim().isEmpty()) {
+                JOptionPane.showMessageDialog(
+                    null,
+                    "Please enter a valid input for the " + discountOptions[discountChoice] + " ID.",
+                    "Invalid Input",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                continue;
+            }
+
+            double discount = amount * DISCOUNT_RATE;
+            double discountedAmount = amount - discount;
+
+            StringBuilder discountBreakdown = new StringBuilder();
+            discountBreakdown.append("Discount Breakdown:\n\n");
+            discountBreakdown.append(String.format("Original Amount: ₱%.2f\n", amount));
+            discountBreakdown.append(String.format("Discount (20%%): ₱%.2f\n", discount));
+            discountBreakdown.append(String.format("Final Amount: ₱%.2f", discountedAmount));
+
+            JOptionPane.showMessageDialog(
+                null,
+                discountBreakdown.toString(),
+                discountOptions[discountChoice] + " Discount Applied",
+                JOptionPane.INFORMATION_MESSAGE
+            );
+
+            return discountedAmount;
         }
-
-        double discount = amount * DISCOUNT_RATE;
-        double discountedAmount = amount - discount;
-
-        StringBuilder discountBreakdown = new StringBuilder();
-        discountBreakdown.append("Discount Breakdown:\n\n");
-        discountBreakdown.append(String.format("Original Amount: ₱%.2f\n", amount));
-        discountBreakdown.append(String.format("Discount (20%%): ₱%.2f\n", discount));
-        discountBreakdown.append(String.format("Final Amount: ₱%.2f", discountedAmount));
-
-        JOptionPane.showMessageDialog(
-            null,
-            discountBreakdown.toString(),
-            discountOptions[discountChoice] + " Discount Applied",
-            JOptionPane.INFORMATION_MESSAGE
-        );
-
-        return discountedAmount;
     }
 
-    public String generateReceiptWithDiscount(JPanel orderPanel, double originalAmount, 
-                                            double discountedAmount, double cashAmount) {
+    public String generateReceiptWithDiscount(JPanel orderPanel, double originalAmount, double discountedAmount, double cashAmount, String refNumber) {
         StringBuilder receipt = new StringBuilder();
         LocalDateTime now = LocalDateTime.now();
-        String refNumber = generateReferenceNumber();
 
         receipt.append("         COFFEE BREAK         \n");
         receipt.append("    Your Daily Coffee Fix     \n");
-        receipt.append("===============================\n");
+        receipt.append("====================================\n");
         receipt.append("Ref #: ").append(refNumber).append("\n");
         receipt.append("Date: ").append(now.format(DateTimeFormatter.ofPattern("MM/dd/yyyy"))).append("\n");
         receipt.append("Time: ").append(now.format(DateTimeFormatter.ofPattern("HH:mm:ss"))).append("\n");
-        receipt.append("-------------------------------\n");
+        receipt.append("------------------------------------\n");
         receipt.append(String.format("%-20s %8s\n", "ITEM", "AMOUNT"));
-        receipt.append("-------------------------------\n");
+        receipt.append("------------------------------------\n");
 
         JScrollPane scrollPane = (JScrollPane) orderPanel.getComponent(1);
         JPanel itemsPanel = (JPanel) scrollPane.getViewport().getView();
@@ -608,16 +682,20 @@ public class CoffeeBreakHelper {
             receipt.append(String.format("%-20s %8s\n", itemName, itemPrice));
         }
 
-        receipt.append("-------------------------------\n");
-        receipt.append(String.format("%-20s %8s\n", "TOTAL", "₱" + String.format("%.2f", totalAmount)));
+        receipt.append("------------------------------------\n");
+        receipt.append(String.format("%-20s %8s\n", "SUBTOTAL", "₱" + String.format("%.2f", originalAmount)));
+        if (originalAmount != discountedAmount) {
+            receipt.append(String.format("%-20s %8s\n", "DISCOUNT (20%)", "₱" + String.format("%.2f", originalAmount - discountedAmount)));
+            receipt.append(String.format("%-20s %8s\n", "TOTAL", "₱" + String.format("%.2f", discountedAmount)));
+        }
         if (cashAmount > 0) {
             receipt.append(String.format("%-20s %8s\n", "CASH", "₱" + String.format("%.2f", cashAmount)));
-            receipt.append(String.format("%-20s %8s\n", "CHANGE", "₱" + String.format("%.2f", cashAmount - totalAmount)));
+            receipt.append(String.format("%-20s %8s\n", "CHANGE", "₱" + String.format("%.2f", cashAmount - discountedAmount)));
         }
-        receipt.append("===============================\n");
+        receipt.append("====================================\n");
         receipt.append("         Thank You!           \n");
         receipt.append("      Please Come Again!      \n");
-        receipt.append("===============================\n");
+        receipt.append("====================================\n");
 
         return receipt.toString();
     }
