@@ -196,7 +196,7 @@ public class GUI {
     private JButton createCancelButton() {
         JButton cancelButton;
         try {
-            ImageIcon originalIcon = new ImageIcon(getClass().getResource("resources/trash-icon.png"));
+            ImageIcon originalIcon = new ImageIcon(getClass().getResource("/resources/trash-icon.png"));
             Image image = originalIcon.getImage();
             Image scaledImage = image.getScaledInstance(24, 24, Image.SCALE_SMOOTH);
             ImageIcon scaledIcon = new ImageIcon(scaledImage);
