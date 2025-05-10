@@ -221,7 +221,7 @@ public class CoffeeBreakHelper {
         }
 
         JLabel titleLabel = new JLabel(title, SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Poppins", Font.BOLD, 18));
+        titleLabel.setFont(new Font("Poppins", Font.BOLD, 12));
         titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
 
         JButton closeBtn = createColoredButton("X", new Color(255, 75, 75));
@@ -518,10 +518,10 @@ public class CoffeeBreakHelper {
                 String pin;
                 while (true) {
                     pin = JOptionPane.showInputDialog(
-                        null, "Enter MPIN (4 digits):", "GCash Payment", JOptionPane.PLAIN_MESSAGE);
+                        null, "Please Enter OTP (6 digits):", "GCash Payment", JOptionPane.PLAIN_MESSAGE);
                     if (pin == null) return false;
                     if (pin.matches("^\\d{4}$")) break;
-                    JOptionPane.showMessageDialog(null, "Invalid MPIN!", "Payment Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Invalid OTP!", "Payment Error", JOptionPane.ERROR_MESSAGE);
                 }
                 paymentSuccess = true;
                 break;
@@ -617,10 +617,13 @@ public class CoffeeBreakHelper {
                 JOptionPane.PLAIN_MESSAGE
             );
 
+
+            // *** 
+
             if (idNumber == null) {
-                // User cancelled, treat as no discount
-                return amount;
-            }
+            // User cancelled, go back to discount type selection
+            return applyDiscount(amount, orderPanel);
+    }
 
             if (idNumber.trim().isEmpty()) {
                 JOptionPane.showMessageDialog(
