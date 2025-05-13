@@ -5,7 +5,7 @@ import java.awt.*;
 import java.awt.event.*;
 
 public class GUI {
-    // Fields
+    // Main application frame and key UI components
     private JFrame frame;
     private JLabel dateLabel;
     private JLabel priceLabel;
@@ -14,8 +14,9 @@ public class GUI {
     private JLabel codeLabel = new JLabel("Code");
     private JLabel qtyLabel = new JLabel("Qty");
     private JLabel priceHeaderLabel = new JLabel("Price");
-    private CoffeeBreakHelper helper = new CoffeeBreakHelper();
+    private CoffeeBreakHelper helper = new CoffeeBreakHelper(); // For program logic
 
+    // Constructor: sets up the main window and shows it
     public GUI() {
         prepareFrame();
         JPanel mainPanel = createMainPanel();
@@ -23,6 +24,7 @@ public class GUI {
         frame.setVisible(true);
     }
 
+    // Sets up the main JFrame properties
     private void prepareFrame() {
         frame = new JFrame();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -32,6 +34,7 @@ public class GUI {
         frame.setLayout(new BorderLayout());
     }
 
+    // Builds the main content panel with header, content, and action areas
     private JPanel createMainPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(30, 30, 10, 30));
@@ -44,17 +47,19 @@ public class GUI {
         return panel;
     }
 
+    // Wrapper for the order header and order panel * Groups relevant components tgt
     private JPanel createHeaderWrapper() {
         JPanel headerWrapper = new JPanel();
         headerWrapper.setLayout(new BoxLayout(headerWrapper, BoxLayout.Y_AXIS));
         headerWrapper.setBackground(Color.WHITE);
 
-        headerWrapper.add(createOrderHeaderPanel());
-        headerWrapper.add(createOrderPanel());
+        headerWrapper.add(createOrderHeaderPanel()); // Shows app title and date
+        headerWrapper.add(createOrderPanel());       // Shows "ORDER INVOICE" label
 
         return headerWrapper;
     }
 
+    // Top header: shows app title and current date
     private JPanel createOrderHeaderPanel() {
         JPanel orderheaderPanel = new JPanel(new BorderLayout());
         orderheaderPanel.setBackground(new Color(220, 220, 220));
@@ -71,6 +76,7 @@ public class GUI {
         return orderheaderPanel;
     }
 
+    // Shows "ORDER INVOICE" label on the left
     private JPanel createOrderPanel() {
         JPanel orderPanel = new JPanel(new BorderLayout());
         orderPanel.setBackground(Color.WHITE);
@@ -83,13 +89,14 @@ public class GUI {
         return orderPanel;
     }
 
+    // Main content: order details and menu buttons
     private JPanel createMainContentPanel() {
         JPanel mainContentPanel = new JPanel();
         mainContentPanel.setLayout(new BoxLayout(mainContentPanel, BoxLayout.X_AXIS));
         mainContentPanel.setBackground(Color.WHITE);
 
-        orderDetailsPanel = createOrderDetailsPanel();
-        JPanel buttonsWrapperPanel = createButtonsWrapperPanel();
+        orderDetailsPanel = createOrderDetailsPanel(); // Shows order items and total
+        JPanel buttonsWrapperPanel = createButtonsWrapperPanel(); // Menu buttons
 
         mainContentPanel.add(orderDetailsPanel);
         mainContentPanel.add(Box.createHorizontalGlue());
@@ -98,19 +105,21 @@ public class GUI {
         return mainContentPanel;
     }
 
+    // Panel for order details: header, items, and total
     private JPanel createOrderDetailsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(Color.WHITE);
         panel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
         panel.setPreferredSize(new Dimension(350, 300));
 
-        panel.add(createHeaderPanel(), BorderLayout.NORTH);
-        panel.add(createItemsScrollPane(), BorderLayout.CENTER);
-        panel.add(createTotalPanel(), BorderLayout.SOUTH);
+        panel.add(createHeaderPanel(), BorderLayout.NORTH); // Column headers
+        panel.add(createItemsScrollPane(), BorderLayout.CENTER); // Order items
+        panel.add(createTotalPanel(), BorderLayout.SOUTH); // Total price
 
         return panel;
     }
 
+    // Header for order details (column names)
     private JPanel createHeaderPanel() {
         JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 60, 0));
         headerPanel.setBackground(Color.LIGHT_GRAY);
@@ -130,6 +139,7 @@ public class GUI {
         return headerPanel;
     }
 
+    // Scrollable area for order items
     private JScrollPane createItemsScrollPane() {
         JPanel itemsPanel = new JPanel();
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
@@ -142,6 +152,7 @@ public class GUI {
         return scrollPane;
     }
 
+    // Panel showing the total price at the bottom of order details
     private JPanel createTotalPanel() {
         JPanel totalPanel = new JPanel(new BorderLayout());
         totalPanel.setBackground(Color.WHITE);
@@ -159,6 +170,7 @@ public class GUI {
         return totalPanel;
     }
 
+    // Wrapper for all menu buttons (drinks, food, etc.)
     private JPanel createButtonsWrapperPanel() {
         JPanel buttonsWrapperPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
         buttonsWrapperPanel.setBackground(Color.WHITE);
@@ -171,6 +183,7 @@ public class GUI {
         for (String label : buttonLabels) {
             JButton button = createBlackButton(label);
             button.setPreferredSize(new Dimension(80, 80));
+            // Each button adds an item to the order when clicked
             button.addActionListener(e -> helper.handleButtonClick(label, orderDetailsPanel, priceLabel));
             buttonsPanel.add(button);
         }
@@ -179,6 +192,7 @@ public class GUI {
         return buttonsWrapperPanel;
     }
 
+    // Panel for action buttons: Cancel and Pay
     private JPanel createActionPanel() {
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0));
         actionPanel.setBackground(Color.WHITE);
@@ -193,6 +207,7 @@ public class GUI {
         return actionPanel;
     }
 
+    // Cancel button: clears the order and resets the total
     private JButton createCancelButton() {
         JButton cancelButton;
         try {
@@ -207,6 +222,7 @@ public class GUI {
         }
 
         cancelButton.addActionListener(e -> {
+            // Remove all items from the order
             JScrollPane scrollPane = (JScrollPane) orderDetailsPanel.getComponent(1);
             JPanel itemsPanel = (JPanel) scrollPane.getViewport().getView();
             itemsPanel.removeAll();
@@ -219,6 +235,7 @@ public class GUI {
         return cancelButton;
     }
 
+    // Pay button: processes payment and resets order on success
     private JButton createPayButton() {
         JButton payButton = createColoredButton("PAY", new Color(120, 200, 120));
         payButton.addActionListener(e -> {
@@ -227,11 +244,13 @@ public class GUI {
                 JOptionPane.showMessageDialog(frame, "No items to pay for!", "Empty Order", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            // Process payment and show result
             boolean paymentSuccessful = helper.processPayment(currentTotal, orderDetailsPanel);
             if (paymentSuccessful) {
                 JOptionPane.showMessageDialog(frame, "Payment successful!");
                 priceLabel.setText("₱0.00");
                 helper.setTotalAmount(0.0);
+                // Clear order items after successful payment
                 JScrollPane scrollPane = (JScrollPane) orderDetailsPanel.getComponent(1);
                 JPanel itemsPanel = (JPanel) scrollPane.getViewport().getView();
                 itemsPanel.removeAll();
@@ -244,7 +263,7 @@ public class GUI {
         return payButton;
     }
 
-    // Button creators
+    // Creates a black menu button with rounded corners and hover effect
     private JButton createBlackButton(String text) {
         JButton button = new JButton("<html><center>" + text + "</center></html>") {
             @Override
@@ -283,6 +302,7 @@ public class GUI {
         return button;
     }
 
+    // Creates a colored button with rounded corners and hover effect
     private JButton createColoredButton(String text, Color color) {
         JButton button = new JButton(text) {
             @Override

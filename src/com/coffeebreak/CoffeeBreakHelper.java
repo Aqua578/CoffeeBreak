@@ -12,22 +12,27 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class CoffeeBreakHelper {
+    // Holds the running total for the current order
     private double totalAmount = 0.0;
+    // Discount rate for Senior/PWD
     private static final double DISCOUNT_RATE = 0.20;
 
-    // Database connection info
+    // Database connection info for PostgreSQL
     private static final String DB_URL = "jdbc:postgresql://localhost:5433/Brew";
     private static final String DB_USER = "postgres";
     private static final String DB_PASS = "0000";
 
+    // Maps for menu subcategories and prices
     private Map<String, String[]> menuSubcategories = new HashMap<>();
     private Map<String, double[]> categoryPrices = new HashMap<>();
 
+    // Constructor: initializes menu data and ensures sales table exists
     public CoffeeBreakHelper() {
         initializeMenuData();
         createSalesTableIfNotExists();
     }
 
+    // Populates menu subcategories and prices for each category
     private void initializeMenuData() {
         menuSubcategories.put("Amerikano", new String[]{"Original Coffee", "Caramel", "Chocolate", "Blanca"});
         menuSubcategories.put("Boba Bliss", new String[]{"Probiotea Pearl", "Chocolate", "Cookies and Cream", "Hokkaido", "Matcha", "Salted Caramel", "Okinawa", "WinterMLN"});
@@ -56,6 +61,7 @@ public class CoffeeBreakHelper {
         categoryPrices.put("Combo", new double[]{99, 149});
     }
 
+    // Creates the sales table in the database if it doesn't exist
     private void createSalesTableIfNotExists() {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
              Statement stmt = conn.createStatement()) {
@@ -72,6 +78,7 @@ public class CoffeeBreakHelper {
         }
     }
 
+    // Inserts a sale record into the database
     private void insertSale(String ref, double amount, LocalDateTime date, String paymentMethod) {
         String sql = "INSERT INTO sales (ref, amount, date, payment_method) VALUES (?, ?, ?, ?)";
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
@@ -86,11 +93,13 @@ public class CoffeeBreakHelper {
         }
     }
 
+    // Returns the current date as a formatted string
     public String getCurrentDate() {
         SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM dd, yyyy");
         return dateFormat.format(new java.util.Date());
     }
 
+    // Returns the main menu button labels
     public String[] createButtonLabels() {
         return new String[] {
             "Amerikano", "Boba Bliss", "Fruit Tea", "Hot Drinks", "Iced Latte", "Non Caffeine", "Special Series", 
@@ -98,6 +107,7 @@ public class CoffeeBreakHelper {
         };
     }
 
+    // Checks if a menu item is a drink (for size options)
     private boolean isDrink(String itemName) {
         String[] drinkItems = {
             "Amerikano", "Boba Bliss", "Fruit Tea", "Hot Drinks", 
@@ -111,6 +121,7 @@ public class CoffeeBreakHelper {
         return false;
     }
 
+    // Loads the Poppins font from resources, falls back to Arial if not found
     private Font getPoppinsFont(float size, int style) {
         try {
             java.io.InputStream is = getClass().getResourceAsStream("/com/coffeebreak/resources/fonts/Poppins-Regular.ttf");
@@ -122,6 +133,7 @@ public class CoffeeBreakHelper {
         }
     }
 
+    // Creates a custom black button with rounded corners and hover/press effects
     private JButton createBlackButton(String text) {
         JButton button = new JButton("<html><center>" + text + "</center></html>") {
             @Override
@@ -160,6 +172,7 @@ public class CoffeeBreakHelper {
         return button;
     }
 
+    // Creates a colored button with rounded corners and hover/press effects
     private JButton createColoredButton(String text, Color color) {
         JButton button = new JButton(text) {
             @Override
@@ -187,7 +200,7 @@ public class CoffeeBreakHelper {
         return button;
     }
 
-    // Center any window/dialog on screen
+    // Centers a window/dialog on the screen
     private void centerWindow(Window window) {
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         Dimension windowSize = window.getSize();
@@ -196,6 +209,7 @@ public class CoffeeBreakHelper {
         window.setLocation(x, y);
     }
 
+    // Shows a custom dialog for selecting an option (returns selected string)
     private String showCustomOptionDialog(String title, String[] options) {
         JDialog dialog = new JDialog((JFrame) null, title, true);
 
@@ -245,6 +259,7 @@ public class CoffeeBreakHelper {
         return selected[0];
     }
 
+    // Shows a custom dialog for selecting an option (returns selected index)
     private int showCustomOptionDialogIndex(String title, String[] options, int defaultIndex) {
         JDialog dialog = new JDialog((JFrame) null, title, true);
 
@@ -296,17 +311,20 @@ public class CoffeeBreakHelper {
         return selected[0];
     }
 
+    // Handles logic when a menu button is clicked: subcategory, size, price, and adds to order panel
     public void handleButtonClick(String buttonLabel, JPanel orderPanel, JLabel priceLabel) {
         if (buttonLabel.trim().isEmpty()) {
             return;
         }
 
+        // Special case for Menu button
         if (buttonLabel.equals("Menu")) {
             JOptionPane.showMessageDialog(null, "Menu options will be displayed here", 
                                      "Menu", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
+        // Get subcategories for the selected category
         String[] subcategories = menuSubcategories.get(buttonLabel);
 
         if (subcategories == null || subcategories.length == 0) {
@@ -315,12 +333,14 @@ public class CoffeeBreakHelper {
             return;
         }
 
+        // Show dialog to select subcategory
         String selectedSubcategory = showCustomOptionDialog(buttonLabel, subcategories);
 
         if (selectedSubcategory == null) {
             return;
         }
 
+        // Get prices for the selected category
         double[] prices = categoryPrices.get(buttonLabel);
 
         if (prices == null) {
@@ -329,6 +349,7 @@ public class CoffeeBreakHelper {
             return;
         }
 
+        // Determine size options based on category
         String[] sizeOptions;
         boolean isDrinkItem = isDrink(buttonLabel);
 
@@ -344,12 +365,14 @@ public class CoffeeBreakHelper {
             sizeOptions = new String[]{"Mini (₱" + prices[0] + ")", "Giant (₱" + prices[1] + ")"};
         }
 
+        // Show dialog to select size
         String selectedSizeOption = showCustomOptionDialog("Choose size for " + selectedSubcategory, sizeOptions);
 
         if (selectedSizeOption == null) {
             return;
         }
 
+        // Find the index of the selected size
         int sizeChoice = -1;
         for (int i = 0; i < sizeOptions.length; i++) {
             if (sizeOptions[i].equals(selectedSizeOption)) {
@@ -359,8 +382,11 @@ public class CoffeeBreakHelper {
         }
         if (sizeChoice == -1) return;
 
+        // Determine size label and price
         String selectedSize;
         double price;
+
+        // Separation for Hot Drinks and Special Series
 
         if (buttonLabel.equals("Hot Drinks")) {
             selectedSize = "12oz";
@@ -373,6 +399,8 @@ public class CoffeeBreakHelper {
             price = prices[sizeChoice];
         }
 
+        // Add the selected item to the order panel
+        // Layout for the Order Invoice
         JScrollPane scrollPane = (JScrollPane) orderPanel.getComponent(1);
         JPanel itemsPanel = (JPanel) scrollPane.getViewport().getView();
 
@@ -429,17 +457,21 @@ public class CoffeeBreakHelper {
         itemsPanel.revalidate();
         itemsPanel.repaint();
 
+        // Update total and price label
         addToTotal(price);
         priceLabel.setText("₱" + String.format("%.2f", getTotalAmount()));
     }
 
+    // Handles the payment process, including discount, payment method, and validation
     public boolean processPayment(double amount, JPanel orderDetailsPanel) {
         if (amount <= 0) {
             return false;
         }
 
+        // Apply discount if applicable
         double finalAmount = applyDiscount(amount, orderDetailsPanel);
 
+        // Payment method selection
         String[] paymentOptions = {"Cash", "Credit Card", "GCash"};
         int paymentChoice = showCustomOptionDialogIndex("Select payment method", paymentOptions, 0);
 
@@ -453,6 +485,7 @@ public class CoffeeBreakHelper {
         boolean paymentSuccess = false;
         double cashAmount = 0;
 
+        // Handle each payment method
         switch (paymentChoice) {
             case 0: // Cash
                 String cashInput = JOptionPane.showInputDialog(
@@ -527,6 +560,7 @@ public class CoffeeBreakHelper {
                 break;
         }
 
+        // If payment is successful, generate and show receipt, and record sale
         if (paymentSuccess) {
             String receipt = generateReceiptWithDiscount(orderDetailsPanel, amount, finalAmount, cashAmount, refNumber);
             // Insert into database before showing receipt
@@ -537,7 +571,7 @@ public class CoffeeBreakHelper {
         return false;
     }
 
-    // --- Receipt Dialog with Black Main Color and White Text, Centered Content ---
+    // Shows a styled receipt dialog with black background and white text
     public void showStyledReceipt(String receiptText) {
         JDialog dialog = new JDialog((JFrame) null, "Receipt", true);
         dialog.setUndecorated(true);
@@ -601,6 +635,7 @@ public class CoffeeBreakHelper {
         dialog.setVisible(true);
     }
 
+    // Applies discount if Senior/PWD is selected, with ID verification and breakdown
     public double applyDiscount(double amount, JPanel orderPanel) {
         String[] discountOptions = {"Senior Citizen", "PWD", "No Discount"};
         int discountChoice = showCustomOptionDialogIndex("Select discount type (if applicable)", discountOptions, 2);
@@ -617,13 +652,10 @@ public class CoffeeBreakHelper {
                 JOptionPane.PLAIN_MESSAGE
             );
 
-
-            // *** 
-
+            // If user cancels, go back to discount selection
             if (idNumber == null) {
-            // User cancelled, go back to discount type selection
-            return applyDiscount(amount, orderPanel);
-    }
+                return applyDiscount(amount, orderPanel);
+            }
 
             if (idNumber.trim().isEmpty()) {
                 JOptionPane.showMessageDialog(
@@ -655,6 +687,7 @@ public class CoffeeBreakHelper {
         }
     }
 
+    // Generates a receipt string, including discount and change if applicable
     public String generateReceiptWithDiscount(JPanel orderPanel, double originalAmount, double discountedAmount, double cashAmount, String refNumber) {
         StringBuilder receipt = new StringBuilder();
         LocalDateTime now = LocalDateTime.now();
@@ -703,6 +736,7 @@ public class CoffeeBreakHelper {
         return receipt.toString();
     }
 
+    // Generates a unique reference number for each transaction
     private String generateReferenceNumber() {
         LocalDateTime now = LocalDateTime.now();
         Random random = new Random();
@@ -711,14 +745,17 @@ public class CoffeeBreakHelper {
         return "CB" + dateStr + randomStr;
     }
 
+    // Returns the current total amount for the order
     public double getTotalAmount() {
         return totalAmount;
     }
 
+    // Sets the total amount (used for resetting or updating)
     public void setTotalAmount(double amount) {
         this.totalAmount = amount;
     }
 
+    // Adds an amount to the running total
     public void addToTotal(double amount) {
         this.totalAmount += amount;
     }
