@@ -9,7 +9,11 @@ import java.io.IOException;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 
 public class CoffeeBreakHelper {
     // Holds the running total for the current order
@@ -238,16 +242,8 @@ public class CoffeeBreakHelper {
         titleLabel.setFont(new Font("Poppins", Font.BOLD, 12));
         titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
 
-        JButton closeBtn = createColoredButton("X", new Color(255, 75, 75));
-        closeBtn.setPreferredSize(new Dimension(50, 30));
-        closeBtn.addActionListener(e -> dialog.dispose());
-        JPanel closePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        closePanel.setBackground(Color.WHITE);
-        closePanel.add(closeBtn);
-
         outerPanel.add(titleLabel, BorderLayout.NORTH);
         outerPanel.add(panel, BorderLayout.CENTER);
-        outerPanel.add(closePanel, BorderLayout.SOUTH);
 
         dialog.getContentPane().add(outerPanel);
         dialog.pack();
@@ -290,16 +286,8 @@ public class CoffeeBreakHelper {
         titleLabel.setFont(new Font("Poppins", Font.BOLD, 18));
         titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
 
-        JButton closeBtn = createColoredButton("X", new Color(255, 75, 75));
-        closeBtn.setPreferredSize(new Dimension(50, 30));
-        closeBtn.addActionListener(e -> dialog.dispose());
-        JPanel closePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        closePanel.setBackground(Color.WHITE);
-        closePanel.add(closeBtn);
-
         outerPanel.add(titleLabel, BorderLayout.NORTH);
         outerPanel.add(panel, BorderLayout.CENTER);
-        outerPanel.add(closePanel, BorderLayout.SOUTH);
 
         dialog.getContentPane().add(outerPanel);
         dialog.pack();
@@ -317,10 +305,9 @@ public class CoffeeBreakHelper {
             return;
         }
 
-        // Special case for Menu button
+        // Special case for Menu button - show menu panel with admin panel button
         if (buttonLabel.equals("Menu")) {
-            JOptionPane.showMessageDialog(null, "Menu options will be displayed here", 
-                                     "Menu", JOptionPane.INFORMATION_MESSAGE);
+            showMenuPanel();
             return;
         }
 
@@ -387,7 +374,6 @@ public class CoffeeBreakHelper {
         double price;
 
         // Separation for Hot Drinks and Special Series
-
         if (buttonLabel.equals("Hot Drinks")) {
             selectedSize = "12oz";
             price = prices[0];
@@ -400,7 +386,6 @@ public class CoffeeBreakHelper {
         }
 
         // Add the selected item to the order panel
-        // Layout for the Order Invoice
         JScrollPane scrollPane = (JScrollPane) orderPanel.getComponent(1);
         JPanel itemsPanel = (JPanel) scrollPane.getViewport().getView();
 
@@ -460,6 +445,139 @@ public class CoffeeBreakHelper {
         // Update total and price label
         addToTotal(price);
         priceLabel.setText("₱" + String.format("%.2f", getTotalAmount()));
+    }
+
+    // Shows the menu panel with a black "Admin Panel" button
+    private void showMenuPanel() {
+        JDialog dialog = new JDialog((JFrame) null, "Menu", true);
+
+        JPanel outerPanel = new JPanel(new BorderLayout());
+        outerPanel.setBackground(Color.WHITE);
+        outerPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+
+        JLabel titleLabel = new JLabel("Menu", SwingConstants.CENTER);
+        titleLabel.setFont(getPoppinsFont(12f, Font.BOLD));
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
+        outerPanel.add(titleLabel, BorderLayout.NORTH);
+
+        JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        centerPanel.setBackground(Color.WHITE);
+
+        // Use the same format as in GUI.java for the Admin Panel button
+        String[] adminLabels = {"Admin Panel"};
+        for (String label : adminLabels) {
+            JButton button = createBlackButton(label);
+            button.setPreferredSize(new Dimension(100, 100));
+            button.addActionListener(e -> {
+                dialog.dispose();
+                showAdminPanel();
+            });
+            centerPanel.add(button);
+        }
+
+        outerPanel.add(centerPanel, BorderLayout.CENTER);
+
+        dialog.getContentPane().add(outerPanel);
+        dialog.pack();
+        dialog.setSize(300, dialog.getHeight());
+        centerWindow(dialog);
+        dialog.setResizable(false);
+        dialog.setVisible(true);
+    }
+
+    // Shows the admin panel with sales data from the database, after password check
+    public void showAdminPanel() {
+        // Show password dialog first
+        JPasswordField pwd = new JPasswordField();
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.add(new JLabel("Enter admin password:"), BorderLayout.NORTH);
+        panel.add(pwd, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(
+            null,
+            panel,
+            "Admin Access",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String password = new String(pwd.getPassword());
+        if (!"0000".equals(password)) {
+            JOptionPane.showMessageDialog(null, "Incorrect password.", "Access Denied", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // --- Show the admin panel as before ---
+        JDialog dialog = new JDialog((JFrame) null, "Admin Panel - Sales Data", true);
+        dialog.setUndecorated(false);
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+
+        JLabel header = new JLabel("Sales Records", SwingConstants.CENTER);
+        header.setFont(getPoppinsFont(22f, Font.BOLD));
+        header.setForeground(Color.BLACK);
+        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+        mainPanel.add(header, BorderLayout.NORTH);
+
+        // Table model and JTable
+        String[] columnNames = {"Reference ID", "Amount", "Date", "Payment Method"};
+        Object[][] data = fetchSalesData();
+        JTable table = new JTable(data, columnNames);
+        table.setFont(getPoppinsFont(14f, Font.PLAIN));
+        table.setRowHeight(28);
+        table.getTableHeader().setFont(getPoppinsFont(15f, Font.BOLD));
+        table.setFillsViewportHeight(true);
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setPreferredSize(new Dimension(600, 350));
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Close button
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 20));
+        buttonPanel.setBackground(Color.WHITE);
+        JButton closeButton = createColoredButton("Close", new Color(60, 60, 60));
+        closeButton.setFont(getPoppinsFont(16f, Font.BOLD));
+        closeButton.addActionListener(e -> dialog.dispose());
+        buttonPanel.add(closeButton);
+
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        dialog.setContentPane(mainPanel);
+        dialog.pack();
+        centerWindow(dialog);
+        dialog.setResizable(false);
+        dialog.setVisible(true);
+    }
+
+    // Fetches sales data from the database for the admin panel
+    private Object[][] fetchSalesData() {
+        List<Object[]> rows = new ArrayList<>();
+        String sql = "SELECT ref, amount, date, payment_method FROM sales ORDER BY date DESC";
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                String ref = rs.getString("ref");
+                double amount = rs.getDouble("amount");
+                Timestamp date = rs.getTimestamp("date");
+                String paymentMethod = rs.getString("payment_method");
+                rows.add(new Object[]{
+                    ref,
+                    String.format("₱%.2f", amount),
+                    date.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                    paymentMethod
+                });
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Failed to fetch sales data: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+        return rows.toArray(new Object[0][]);
     }
 
     // Handles the payment process, including discount, payment method, and validation
@@ -745,6 +863,10 @@ public class CoffeeBreakHelper {
         return "CB" + dateStr + randomStr;
     }
 
+    public void addToTotal(double amount) {
+        this.totalAmount += amount;
+    }
+
     // Returns the current total amount for the order
     public double getTotalAmount() {
         return totalAmount;
@@ -753,10 +875,5 @@ public class CoffeeBreakHelper {
     // Sets the total amount (used for resetting or updating)
     public void setTotalAmount(double amount) {
         this.totalAmount = amount;
-    }
-
-    // Adds an amount to the running total
-    public void addToTotal(double amount) {
-        this.totalAmount += amount;
     }
 }
