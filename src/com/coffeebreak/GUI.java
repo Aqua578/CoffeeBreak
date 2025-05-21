@@ -1,5 +1,9 @@
 package com.coffeebreak;
 
+import javax.imageio.ImageIO;
+import java.io.File;
+import java.io.IOException;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -15,6 +19,7 @@ public class GUI {
     private JLabel qtyLabel = new JLabel("Qty");
     private JLabel priceHeaderLabel = new JLabel("Price");
     private CoffeeBreakHelper helper = new CoffeeBreakHelper(); // For program logic
+    
 
     // Constructor: sets up the main window and shows it
     public GUI() {
@@ -32,6 +37,15 @@ public class GUI {
         frame.setSize(1280, 720);
         frame.setResizable(false);
         frame.setLayout(new BorderLayout());
+
+        try {
+        // Load the image using ImageIO
+        frame.setIconImage(ImageIO.read(new File("./src/resources/coffeebreaklogo.png")));
+    } catch (IOException e) {
+        System.err.println("Could not load application icon: " + e.getMessage());
+        e.printStackTrace();
+    }
+
     }
 
     // Builds the main content panel with header, content, and action areas

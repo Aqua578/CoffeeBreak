@@ -1,19 +1,32 @@
 package com.coffeebreak;
 
 import javax.swing.*;
+import javax.swing.JFormattedTextField.AbstractFormatter;
+import javax.swing.table.DefaultTableModel;
+
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.sql.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
+import org.jdatepicker.impl.JDatePanelImpl;
+import org.jdatepicker.impl.JDatePickerImpl;
+import org.jdatepicker.impl.UtilDateModel;
+
+
+
 
 public class CoffeeBreakHelper {
     // Holds the running total for the current order
@@ -35,6 +48,7 @@ public class CoffeeBreakHelper {
         initializeMenuData();
         createSalesTableIfNotExists();
     }
+
 
     // Populates menu subcategories and prices for each category
     private void initializeMenuData() {
@@ -511,38 +525,85 @@ public class CoffeeBreakHelper {
             return;
         }
 
-        // --- Show the admin panel as before ---
-        JDialog dialog = new JDialog((JFrame) null, "Admin Panel - Sales Data", true);
+        // Create main dialog
+        JDialog dialog = new JDialog((JFrame) null, "Admin Panel - Sales Reports", true);
         dialog.setUndecorated(false);
 
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBackground(Color.WHITE);
         mainPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
 
-        JLabel header = new JLabel("Sales Records", SwingConstants.CENTER);
+        // Header
+        JLabel header = new JLabel("Sales Reports", SwingConstants.CENTER);
         header.setFont(getPoppinsFont(22f, Font.BOLD));
         header.setForeground(Color.BLACK);
         header.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
         mainPanel.add(header, BorderLayout.NORTH);
 
-        // Table model and JTable
+        // Report selection panel
+        JPanel reportPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        reportPanel.setBackground(Color.WHITE);
+
+        // Date picker for reports
+        JDatePickerImpl datePicker = createDatePicker();
+        reportPanel.add(new JLabel("Select Date:"));
+        reportPanel.add(datePicker);
+
+        // Report type buttons
+        JButton dailyButton = createColoredButton("Daily", new Color(60, 60, 60));
+        JButton weeklyButton = createColoredButton("Weekly", new Color(60, 60, 60));
+        JButton monthlyButton = createColoredButton("Monthly", new Color(60, 60, 60));
+        JButton yearlyButton = createColoredButton("Yearly", new Color(60, 60, 60));
+
+        reportPanel.add(dailyButton);
+        reportPanel.add(weeklyButton);
+        reportPanel.add(monthlyButton);
+        reportPanel.add(yearlyButton);
+
+        mainPanel.add(reportPanel, BorderLayout.NORTH);
+
+        // Table panel
         String[] columnNames = {"Reference ID", "Amount", "Date", "Payment Method"};
-        Object[][] data = fetchSalesData();
-        JTable table = new JTable(data, columnNames);
+        JTable table = new JTable(new Object[0][4], columnNames);
         table.setFont(getPoppinsFont(14f, Font.PLAIN));
         table.setRowHeight(28);
         table.getTableHeader().setFont(getPoppinsFont(15f, Font.BOLD));
         table.setFillsViewportHeight(true);
 
         JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setPreferredSize(new Dimension(600, 350));
+        scrollPane.setPreferredSize(new Dimension(800, 400));
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
+        // Button actions
+        dailyButton.addActionListener(e -> {
+            LocalDate selectedDate = getSelectedDate(datePicker);
+            table.setModel(new DefaultTableModel(
+                fetchDailySalesData(selectedDate), columnNames));
+        });
+
+        weeklyButton.addActionListener(e -> {
+            LocalDate selectedDate = getSelectedDate(datePicker);
+            table.setModel(new DefaultTableModel(
+                fetchWeeklySalesData(selectedDate), columnNames));
+        });
+
+        monthlyButton.addActionListener(e -> {
+            LocalDate selectedDate = getSelectedDate(datePicker);
+            table.setModel(new DefaultTableModel(
+                fetchMonthlySalesData(selectedDate.getYear(), selectedDate.getMonthValue()), 
+                columnNames));
+        });
+
+        yearlyButton.addActionListener(e -> {
+            LocalDate selectedDate = getSelectedDate(datePicker);
+            table.setModel(new DefaultTableModel(
+                fetchYearlySalesData(selectedDate.getYear()), columnNames));
+        });
+
         // Close button
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 20));
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.setBackground(Color.WHITE);
         JButton closeButton = createColoredButton("Close", new Color(60, 60, 60));
-        closeButton.setFont(getPoppinsFont(16f, Font.BOLD));
         closeButton.addActionListener(e -> dialog.dispose());
         buttonPanel.add(closeButton);
 
@@ -551,8 +612,173 @@ public class CoffeeBreakHelper {
         dialog.setContentPane(mainPanel);
         dialog.pack();
         centerWindow(dialog);
-        dialog.setResizable(false);
         dialog.setVisible(true);
+    }
+
+    // Helper method to create a date picker
+    private JDatePickerImpl createDatePicker() {
+        UtilDateModel model = new UtilDateModel();
+        Properties p = new Properties();
+        p.put("text.today", "Today");
+        JDatePanelImpl datePanel = new JDatePanelImpl(model, p);
+        return new JDatePickerImpl(datePanel, new DateLabelFormatter());
+    }
+
+    // Helper method to get selected date from picker
+    private LocalDate getSelectedDate(JDatePickerImpl datePicker) {
+        Date selected = (Date) datePicker.getModel().getValue();
+        return selected != null ? selected.toInstant()
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate() : LocalDate.now();
+    }
+
+    // Date formatter for the picker
+    private class DateLabelFormatter extends AbstractFormatter {
+        private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+        @Override
+        public Object stringToValue(String text) throws ParseException {
+            if (text == null || text.trim().isEmpty()) {
+                return null;
+            }
+            return LocalDate.parse(text, dateFormatter);
+        }
+
+        @Override
+        public String valueToString(Object value) throws ParseException {
+            if (value == null) {
+                return "";
+            }
+            if (value instanceof LocalDate) {
+                return dateFormatter.format((LocalDate) value);
+            }
+            return "";
+        }
+    }
+    // Add these methods to the CoffeeBreakHelper class
+
+    private Object[][] fetchDailySalesData(LocalDate date) {
+        List<Object[]> rows = new ArrayList<>();
+        String sql = """
+            SELECT ref, amount, date, payment_method 
+            FROM sales 
+            WHERE DATE(date) = ? 
+            ORDER BY date DESC
+            """;
+            
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setDate(1, java.sql.Date.valueOf(date));
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(createSalesRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Failed to fetch daily sales: " + e.getMessage(), 
+                "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+        return rows.toArray(new Object[0][]);
+    }
+
+    private Object[][] fetchWeeklySalesData(LocalDate startDate) {
+    List<Object[]> rows = new ArrayList<>();
+    String sql = """
+        SELECT ref, amount, date, payment_method 
+        FROM sales 
+        WHERE date::date >= ?::date 
+        AND date::date < (?::date + INTERVAL '1 week')::date
+        ORDER BY date DESC
+        """;
+        
+    try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+        pstmt.setDate(1, java.sql.Date.valueOf(startDate));
+        pstmt.setDate(2, java.sql.Date.valueOf(startDate));
+            
+        try (ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                rows.add(createSalesRow(rs));
+            }
+        }
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(null, 
+            "Failed to fetch weekly sales: " + e.getMessage(), 
+            "DB Error", 
+            JOptionPane.ERROR_MESSAGE);
+    }
+    return rows.toArray(new Object[0][]);
+}
+
+    private Object[][] fetchMonthlySalesData(int year, int month) {
+        List<Object[]> rows = new ArrayList<>();
+        String sql = """
+            SELECT ref, amount, date, payment_method 
+            FROM sales 
+            WHERE EXTRACT(YEAR FROM date) = ? AND EXTRACT(MONTH FROM date) = ?
+            ORDER BY date DESC
+            """;
+            
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setInt(1, year);
+            pstmt.setInt(2, month);
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(createSalesRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Failed to fetch monthly sales: " + e.getMessage(), 
+                "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+        return rows.toArray(new Object[0][]);
+    }
+
+    private Object[][] fetchYearlySalesData(int year) {
+        List<Object[]> rows = new ArrayList<>();
+        String sql = """
+            SELECT ref, amount, date, payment_method 
+            FROM sales 
+            WHERE EXTRACT(YEAR FROM date) = ?
+            ORDER BY date DESC
+            """;
+            
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setInt(1, year);
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(createSalesRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Failed to fetch yearly sales: " + e.getMessage(), 
+                "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+        return rows.toArray(new Object[0][]);
+    }
+
+    // Helper method to create a row from ResultSet
+    private Object[] createSalesRow(ResultSet rs) throws SQLException {
+        String ref = rs.getString("ref");
+        double amount = rs.getDouble("amount");
+        Timestamp date = rs.getTimestamp("date");
+        String paymentMethod = rs.getString("payment_method");
+        
+        return new Object[]{
+            ref,
+            String.format("₱%.2f", amount),
+            date.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+            paymentMethod
+        };
     }
 
     // Fetches sales data from the database for the admin panel
@@ -669,7 +895,7 @@ public class CoffeeBreakHelper {
                 String pin;
                 while (true) {
                     pin = JOptionPane.showInputDialog(
-                        null, "Please Enter OTP (6 digits):", "GCash Payment", JOptionPane.PLAIN_MESSAGE);
+                        null, "Please Enter OTP (4 digits):", "GCash Payment", JOptionPane.PLAIN_MESSAGE);
                     if (pin == null) return false;
                     if (pin.matches("^\\d{4}$")) break;
                     JOptionPane.showMessageDialog(null, "Invalid OTP!", "Payment Error", JOptionPane.ERROR_MESSAGE);
