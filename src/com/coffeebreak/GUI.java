@@ -7,6 +7,9 @@ import java.io.IOException;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 
 public class GUI {
     // Main application frame and key UI components
@@ -31,22 +34,35 @@ public class GUI {
 
     // Sets up the main JFrame properties
     private void prepareFrame() {
-        frame = new JFrame();
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setTitle("Brew");
-        frame.setSize(1280, 720);
-        frame.setResizable(false);
-        frame.setLayout(new BorderLayout());
+    frame = new JFrame();
+    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame.setTitle("Brew");
+    frame.setSize(1280, 720);
+    frame.setResizable(false);
+    frame.setLayout(new BorderLayout());
 
-        try {
-        // Load the image using ImageIO
-        frame.setIconImage(ImageIO.read(new File("./src/resources/coffeebreaklogo.png")));
+    try {
+        // Load and scale the image
+        BufferedImage originalIcon = ImageIO.read(new File("./src/resources/coffeebreaklogo.png"));
+        
+        // Scale to higher resolution (e.g., 64x64 pixels)
+        int width = 32;
+        int height = 32;
+        Image scaledImage = originalIcon.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+        
+        // Convert scaled image back to BufferedImage for better quality
+        BufferedImage finalIcon = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = finalIcon.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2d.drawImage(scaledImage, 0, 0, null);
+        g2d.dispose();
+
+        frame.setIconImage(finalIcon);
     } catch (IOException e) {
         System.err.println("Could not load application icon: " + e.getMessage());
         e.printStackTrace();
     }
-
-    }
+}
 
     // Builds the main content panel with header, content, and action areas
     private JPanel createMainPanel() {
