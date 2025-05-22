@@ -21,6 +21,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
@@ -38,6 +42,10 @@ public class CoffeeBreakHelper {
     private static final String DB_URL = "jdbc:postgresql://localhost:5433/Brew";
     private static final String DB_USER = "postgres";
     private static final String DB_PASS = "0000";
+
+    // Admin authentication
+    private static String ADMIN_PASSWORD_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"; // Default: "password"
+    private static final String ADMIN_PASSWORD_SALT = "CoffeeBreakSalt2025"; // Fixed salt for simplicity
 
     // Maps for menu subcategories and prices
     private Map<String, String[]> menuSubcategories = new HashMap<>();
@@ -520,7 +528,7 @@ public class CoffeeBreakHelper {
         }
 
         String password = new String(pwd.getPassword());
-        if (!"0000".equals(password)) {
+        if (!verifyPassword(password)) {
             JOptionPane.showMessageDialog(null, "Incorrect password.", "Access Denied", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -600,11 +608,19 @@ public class CoffeeBreakHelper {
                 fetchYearlySalesData(selectedDate.getYear()), columnNames));
         });
 
-        // Close button
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        // Bottom button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         buttonPanel.setBackground(Color.WHITE);
+
+        // Change password button
+        JButton changePasswordButton = createColoredButton("Change Password", new Color(60, 60, 60));
+        changePasswordButton.addActionListener(e -> showChangePasswordDialog());
+
+        // Close button
         JButton closeButton = createColoredButton("Close", new Color(60, 60, 60));
         closeButton.addActionListener(e -> dialog.dispose());
+
+        buttonPanel.add(changePasswordButton);
         buttonPanel.add(closeButton);
 
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -1087,6 +1103,116 @@ public class CoffeeBreakHelper {
         String dateStr = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String randomStr = String.format("%04d", random.nextInt(10000));
         return "CB" + dateStr + randomStr;
+    }
+
+    // Hash a password using SHA-256 with salt
+    private String hashPassword(String password) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            String saltedPassword = password + ADMIN_PASSWORD_SALT;
+            byte[] hash = digest.digest(saltedPassword.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // Fallback to basic security if SHA-256 is not available
+            return String.valueOf((password + ADMIN_PASSWORD_SALT).hashCode());
+        }
+    }
+
+    // Verify if entered password matches stored hash
+    private boolean verifyPassword(String enteredPassword) {
+        String enteredHash = hashPassword(enteredPassword);
+        return ADMIN_PASSWORD_HASH.equals(enteredHash);
+    }
+
+    // Change admin password
+    private void changeAdminPassword(String newPassword) {
+        ADMIN_PASSWORD_HASH = hashPassword(newPassword);
+    }
+
+    // Shows a dialog for changing the admin password
+    private void showChangePasswordDialog() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Current password field
+        JPasswordField currentPwdField = new JPasswordField(15);
+        panel.add(new JLabel("Current Password:"));
+        panel.add(currentPwdField);
+
+        // New password field
+        JPasswordField newPwdField = new JPasswordField(15);
+        panel.add(new JLabel("New Password:"));
+        panel.add(newPwdField);
+
+        // Confirm new password field
+        JPasswordField confirmPwdField = new JPasswordField(15);
+        panel.add(new JLabel("Confirm New Password:"));
+        panel.add(confirmPwdField);
+
+        int result = JOptionPane.showConfirmDialog(
+            null, panel, "Change Admin Password",
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        // Get passwords from fields
+        String currentPwd = new String(currentPwdField.getPassword());
+        String newPwd = new String(newPwdField.getPassword());
+        String confirmPwd = new String(confirmPwdField.getPassword());
+
+        // Validate inputs
+        if (currentPwd.isEmpty() || newPwd.isEmpty() || confirmPwd.isEmpty()) {
+            JOptionPane.showMessageDialog(null,
+                "All fields are required.",
+                "Missing Information",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Verify current password
+        if (!verifyPassword(currentPwd)) {
+            JOptionPane.showMessageDialog(null,
+                "Current password is incorrect.",
+                "Authentication Failed",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Verify passwords match
+        if (!newPwd.equals(confirmPwd)) {
+            JOptionPane.showMessageDialog(null,
+                "New passwords don't match.",
+                "Password Mismatch",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Check password strength
+        if (newPwd.length() < 8) {
+            JOptionPane.showMessageDialog(null,
+                "Password must be at least 8 characters long.",
+                "Weak Password",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Change the password
+        changeAdminPassword(newPwd);
+
+        JOptionPane.showMessageDialog(null,
+            "Admin password changed successfully.",
+            "Password Changed",
+            JOptionPane.INFORMATION_MESSAGE);
     }
 
     public void addToTotal(double amount) {
