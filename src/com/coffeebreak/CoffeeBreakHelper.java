@@ -25,7 +25,8 @@ import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
 
-
+import com.coffeebreak.config.DatabaseConfig;
+import com.coffeebreak.config.DatabaseConfigDialog;
 
 
 public class CoffeeBreakHelper {
@@ -34,10 +35,8 @@ public class CoffeeBreakHelper {
     // Discount rate for Senior/PWD
     private static final double DISCOUNT_RATE = 0.20;
 
-    // Database connection info for PostgreSQL
-    private static final String DB_URL = "jdbc:postgresql://localhost:5433/Brew";
-    private static final String DB_USER = "postgres";
-    private static final String DB_PASS = "0000";
+    // Database configuration
+    private final DatabaseConfig dbConfig;
 
     // Maps for menu subcategories and prices
     private Map<String, String[]> menuSubcategories = new HashMap<>();
@@ -45,6 +44,7 @@ public class CoffeeBreakHelper {
 
     // Constructor: initializes menu data and ensures sales table exists
     public CoffeeBreakHelper() {
+        this.dbConfig = DatabaseConfig.getInstance();
         initializeMenuData();
         createSalesTableIfNotExists();
     }
@@ -81,7 +81,10 @@ public class CoffeeBreakHelper {
 
     // Creates the sales table in the database if it doesn't exist
     private void createSalesTableIfNotExists() {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        try (Connection conn = DriverManager.getConnection(
+                dbConfig.getDbUrl(),
+                dbConfig.getDbUser(),
+                dbConfig.getDbPassword());
              Statement stmt = conn.createStatement()) {
             String sql = "CREATE TABLE IF NOT EXISTS sales (" +
                     "id SERIAL PRIMARY KEY, " +
@@ -99,7 +102,10 @@ public class CoffeeBreakHelper {
     // Inserts a sale record into the database
     private void insertSale(String ref, double amount, LocalDateTime date, String paymentMethod) {
         String sql = "INSERT INTO sales (ref, amount, date, payment_method) VALUES (?, ?, ?, ?)";
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        try (Connection conn = DriverManager.getConnection(
+                dbConfig.getDbUrl(),
+                dbConfig.getDbUser(),
+                dbConfig.getDbPassword());
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, ref);
             ps.setDouble(2, amount);
@@ -660,24 +666,27 @@ public class CoffeeBreakHelper {
     private Object[][] fetchDailySalesData(LocalDate date) {
         List<Object[]> rows = new ArrayList<>();
         String sql = """
-            SELECT ref, amount, date, payment_method 
-            FROM sales 
-            WHERE DATE(date) = ? 
+            SELECT ref, amount, date, payment_method
+            FROM sales
+            WHERE DATE(date) = ?
             ORDER BY date DESC
             """;
-            
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+
+        try (Connection conn = DriverManager.getConnection(
+                dbConfig.getDbUrl(),
+                dbConfig.getDbUser(),
+                dbConfig.getDbPassword());
             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
+
             pstmt.setDate(1, java.sql.Date.valueOf(date));
-            
+
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     rows.add(createSalesRow(rs));
                 }
             }
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(null, "Failed to fetch daily sales: " + e.getMessage(), 
+            JOptionPane.showMessageDialog(null, "Failed to fetch daily sales: " + e.getMessage(),
                 "DB Error", JOptionPane.ERROR_MESSAGE);
         }
         return rows.toArray(new Object[0][]);
@@ -686,28 +695,31 @@ public class CoffeeBreakHelper {
     private Object[][] fetchWeeklySalesData(LocalDate startDate) {
     List<Object[]> rows = new ArrayList<>();
     String sql = """
-        SELECT ref, amount, date, payment_method 
-        FROM sales 
-        WHERE date::date >= ?::date 
+        SELECT ref, amount, date, payment_method
+        FROM sales
+        WHERE date::date >= ?::date
         AND date::date < (?::date + INTERVAL '1 week')::date
         ORDER BY date DESC
         """;
-        
-    try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+
+    try (Connection conn = DriverManager.getConnection(
+            dbConfig.getDbUrl(),
+            dbConfig.getDbUser(),
+            dbConfig.getDbPassword());
          PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
+
         pstmt.setDate(1, java.sql.Date.valueOf(startDate));
         pstmt.setDate(2, java.sql.Date.valueOf(startDate));
-            
+
         try (ResultSet rs = pstmt.executeQuery()) {
             while (rs.next()) {
                 rows.add(createSalesRow(rs));
             }
         }
     } catch (SQLException e) {
-        JOptionPane.showMessageDialog(null, 
-            "Failed to fetch weekly sales: " + e.getMessage(), 
-            "DB Error", 
+        JOptionPane.showMessageDialog(null,
+            "Failed to fetch weekly sales: " + e.getMessage(),
+            "DB Error",
             JOptionPane.ERROR_MESSAGE);
     }
     return rows.toArray(new Object[0][]);
@@ -716,25 +728,28 @@ public class CoffeeBreakHelper {
     private Object[][] fetchMonthlySalesData(int year, int month) {
         List<Object[]> rows = new ArrayList<>();
         String sql = """
-            SELECT ref, amount, date, payment_method 
-            FROM sales 
+            SELECT ref, amount, date, payment_method
+            FROM sales
             WHERE EXTRACT(YEAR FROM date) = ? AND EXTRACT(MONTH FROM date) = ?
             ORDER BY date DESC
             """;
-            
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+
+        try (Connection conn = DriverManager.getConnection(
+                dbConfig.getDbUrl(),
+                dbConfig.getDbUser(),
+                dbConfig.getDbPassword());
             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
+
             pstmt.setInt(1, year);
             pstmt.setInt(2, month);
-            
+
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     rows.add(createSalesRow(rs));
                 }
             }
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(null, "Failed to fetch monthly sales: " + e.getMessage(), 
+            JOptionPane.showMessageDialog(null, "Failed to fetch monthly sales: " + e.getMessage(),
                 "DB Error", JOptionPane.ERROR_MESSAGE);
         }
         return rows.toArray(new Object[0][]);
@@ -743,24 +758,27 @@ public class CoffeeBreakHelper {
     private Object[][] fetchYearlySalesData(int year) {
         List<Object[]> rows = new ArrayList<>();
         String sql = """
-            SELECT ref, amount, date, payment_method 
-            FROM sales 
+            SELECT ref, amount, date, payment_method
+            FROM sales
             WHERE EXTRACT(YEAR FROM date) = ?
             ORDER BY date DESC
             """;
-            
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+
+        try (Connection conn = DriverManager.getConnection(
+                dbConfig.getDbUrl(),
+                dbConfig.getDbUser(),
+                dbConfig.getDbPassword());
             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
+
             pstmt.setInt(1, year);
-            
+
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     rows.add(createSalesRow(rs));
                 }
             }
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(null, "Failed to fetch yearly sales: " + e.getMessage(), 
+            JOptionPane.showMessageDialog(null, "Failed to fetch yearly sales: " + e.getMessage(),
                 "DB Error", JOptionPane.ERROR_MESSAGE);
         }
         return rows.toArray(new Object[0][]);
@@ -785,7 +803,10 @@ public class CoffeeBreakHelper {
     private Object[][] fetchSalesData() {
         List<Object[]> rows = new ArrayList<>();
         String sql = "SELECT ref, amount, date, payment_method FROM sales ORDER BY date DESC";
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+        try (Connection conn = DriverManager.getConnection(
+                dbConfig.getDbUrl(),
+                dbConfig.getDbUser(),
+                dbConfig.getDbPassword());
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
